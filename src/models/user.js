@@ -5,6 +5,7 @@ const validator = require('validator');
 const User = mongoose.model('User', {
     name: {
         type: String,
+        trim: true
     },
     email: {
         type: String,
