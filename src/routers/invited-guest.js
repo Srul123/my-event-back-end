@@ -48,7 +48,9 @@ router.patch('/invited-guests/:id', (async (req, res) => {
     }
     const _id = req.params.id;
     try {
-        const invitedGuest = await InvitedGuest.findByIdAndUpdate(_id, req.body, {new: true, runValidators: true});
+        const invitedGuest = await InvitedGuest.findById( _id)
+        updates.forEach((update)=> invitedGuest[update] = req.body[update])
+        await invitedGuest.save()
         if (!invitedGuest) {
             return res.status(404).send()
         }
