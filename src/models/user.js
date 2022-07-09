@@ -2,15 +2,18 @@ const mongoose = require('mongoose');
 const validator = require('validator');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const InvitedGuest = require('./invitedGuest');
 
 const userSchema = new mongoose.Schema({
     name: {
         type: String,
+        required: true,
         trim: true
     },
     email: {
         type: String,
         unique: true,
+        required: true,
         trim: true,
         lowercase: true,
         validate(value) {
@@ -21,25 +24,56 @@ const userSchema = new mongoose.Schema({
     },
     password: {
         type: String,
+        required: true,
         trim: true,
         min: 6
     },
+    tokens: [{
+        token: {
+            type: String,
+            required: true
+        }
+    }]
+})
+
+userSchema.virtual('invitedGuests', {
+    ref: 'InvitedGuest',
+    localField: '_id',
+    foreignField: 'user'
 })
 
 // Hash plain text password before saving
 userSchema.pre('save', async function (next) {
     const user = this
-    const salt = await bcrypt.genSalt(10);
     if (user.isModified('password')) {
+        const salt = await bcrypt.genSalt(10);
         user.password = await bcrypt.hash(user.password, salt)
     }
     next()
 })
 
-userSchema.methods.generateAuthToken = async function () {
+userSchema.pre('remove', async function (next) {
+    const user = this
+    InvitedGuest.deleteMany({user: user._id})
+    next()
+})
+
+userSchema.methods.generateAuthTokenAndSaveUser = async function () {
     const user = this
     const token = jwt.sign({_id: user._id.toString()}, 'json_web_token_my_event')
+    user.tokens = user.tokens.concat({token})
+    await user.save()
+
     return token
+}
+
+userSchema.methods.toJSON = function () {
+    const user = this
+    const userObject = user.toObject()
+    delete userObject.password
+    delete userObject.tokens
+
+    return userObject
 }
 
 userSchema.statics.findByCredentials = async (email, password) => {
@@ -55,8 +89,6 @@ userSchema.statics.findByCredentials = async (email, password) => {
 
     return user;
 }
-
-
 
 
 const User = mongoose.model('User', userSchema)

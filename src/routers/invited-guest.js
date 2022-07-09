@@ -1,11 +1,14 @@
 const express = require('express')
 const InvitedGuest = require('../models/invitedGuest')
-const router  = new express.Router()
+const auth = require('../middleware/auth')
+const router = new express.Router()
 
 
-
-router.post('/invited-guests', (async (req, res) => {
-    const invitedGuest = new InvitedGuest(req.body);
+router.post('/invited-guests', auth, async (req, res) => {
+    const invitedGuest = new InvitedGuest({
+        ...req.body,
+        user: req.user._id
+    });
     try {
         await invitedGuest.save()
         res.status(201).send(invitedGuest)
@@ -13,22 +16,22 @@ router.post('/invited-guests', (async (req, res) => {
         res.status(400)
         res.send(e)
     }
-}))
+})
 
-router.get('/invited-guests/', (async (req, res) => {
+router.get('/invited-guests/', auth, async (req, res) => {
     try {
-        const invitedGuests = await InvitedGuest.find({})
-        res.status(201).send(invitedGuests);
+        await req.user.populate('invitedGuests')
+        res.status(201).send(req.user.invitedGuests);
     } catch (e) {
         res.status(400)
         res.send(e)
     }
-}))
+})
 
-router.get('/invited-guests/:id', (async (req, res) => {
+router.get('/invited-guests/:id', auth, async (req, res) => {
     const _id = req.params.id;
     try {
-        const invitedGuest = await InvitedGuest.findOne({_id: _id})
+        const invitedGuest = await InvitedGuest.findOne({_id, user: req.user._id})
         if (!invitedGuest) {
             return res.status(404).send()
         }
@@ -37,34 +40,32 @@ router.get('/invited-guests/:id', (async (req, res) => {
         res.status(400)
         res.send(e)
     }
-}))
+})
 
-router.patch('/invited-guests/:id', (async (req, res) => {
+router.patch('/invited-guests/:id', auth, async (req, res) => {
     const updates = Object.keys(req.body)
     const allowedUpdates = ['name', 'totalInvited', 'phoneNumber', 'email', 'arrivalStatus', 'comments']
-    const isValidOperation = updates.every((update)=> allowedUpdates.includes(update))
+    const isValidOperation = updates.every((update) => allowedUpdates.includes(update))
     if (!isValidOperation) {
         return res.status(400).send({error: "Invalid updates"})
     }
-    const _id = req.params.id;
     try {
-        const invitedGuest = await InvitedGuest.findById( _id)
-        updates.forEach((update)=> invitedGuest[update] = req.body[update])
-        await invitedGuest.save()
+        const invitedGuest = await InvitedGuest.findOne({_id: req.params.id, user: req.user._id})
         if (!invitedGuest) {
             return res.status(404).send()
         }
+        updates.forEach((update) => invitedGuest[update] = req.body[update])
+        await invitedGuest.save()
         res.send(invitedGuest)
     } catch (e) {
         res.status(400)
         res.send(e)
     }
-}))
+})
 
-router.delete('/invited-guests/:id', (async (req, res) => {
-    const _id = req.params.id;
+router.delete('/invited-guests/:id', auth,async (req, res) => {
     try {
-        const invitedGuest = await InvitedGuest.findOneAndDelete({_id: _id})
+        const invitedGuest = await InvitedGuest.findOneAndDelete({_id: req.params.id, user: req.user._id})
         if (!invitedGuest) {
             return res.status(404).send()
         }
@@ -73,6 +74,6 @@ router.delete('/invited-guests/:id', (async (req, res) => {
         res.status(400)
         res.send(e)
     }
-}))
+})
 
 module.exports = router
